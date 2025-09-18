@@ -20,10 +20,11 @@ int showit(); /* Function prototype */
 main() {
   int i = 0; /* Automatic variable */
 
+  //Вообщем эти переменные помогают понять организацию памяти процесса в Unix-системах
   /* Printing addressing information */
-  printf("\nAddress etext: %8X \n", &etext);
-  printf("Address edata: %8X \n", &edata);
-  printf("Address end  : %8X \n", &end);
+  printf("\nAddress etext: %8X \n", &etext);//aдрес,где заканчивается исполняемый код программы
+  printf("Address edata: %8X \n", &edata);//aдрес, где заканчиваются инициализированные глобальные и статические переменные
+  printf("Address end  : %8X \n", &end);//aдрес, где заканчиваются неинициализированные глобальные и статические переменные
 
   SHW_ADR("main", main);
   SHW_ADR("showit", showit);
