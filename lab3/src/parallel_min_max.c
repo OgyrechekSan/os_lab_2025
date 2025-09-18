@@ -5,10 +5,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 
 #include <getopt.h>
 
@@ -40,24 +42,30 @@ int main(int argc, char **argv) {
         switch (option_index) {
           case 0:
             seed = atoi(optarg);
-            // your code here
-            // error handling
+            if (seed <= 0) {
+              printf("seed must be a positive number\n");
+              return 1;
+            }
             break;
           case 1:
             array_size = atoi(optarg);
-            // your code here
-            // error handling
+            if (array_size <= 0) {
+              printf("array_size must be a positive number\n");
+              return 1;
+            }
             break;
           case 2:
             pnum = atoi(optarg);
-            // your code here
-            // error handling
+            if (pnum <= 0) {
+              printf("pnum must be a positive number\n");
+              return 1;
+            }
             break;
           case 3:
             with_files = true;
             break;
 
-          defalut:
+          default:
             printf("Index %d is out of options\n", option_index);
         }
         break;
@@ -88,6 +96,28 @@ int main(int argc, char **argv) {
   GenerateArray(array, array_size, seed);
   int active_child_processes = 0;
 
+  // Create arrays for pipes or file descriptors
+  int *pipe_fds = NULL;
+  char **filenames = NULL;
+  
+  if (!with_files) {
+    // Allocate memory for pipe file descriptors
+    pipe_fds = malloc(2 * pnum * sizeof(int));
+    for (int i = 0; i < pnum; i++) {
+      if (pipe(pipe_fds + 2*i) == -1) {
+        printf("Pipe creation failed!\n");
+        return 1;
+      }
+    }
+  } else {
+    // Allocate memory for filenames
+    filenames = malloc(pnum * sizeof(char*));
+    for (int i = 0; i < pnum; i++) {
+      filenames[i] = malloc(25 * sizeof(char));
+      snprintf(filenames[i], 25, "min_max_%d.txt", i);
+    }
+  }
+
   struct timeval start_time;
   gettimeofday(&start_time, NULL);
 
@@ -98,15 +128,33 @@ int main(int argc, char **argv) {
       active_child_processes += 1;
       if (child_pid == 0) {
         // child process
+        unsigned int start_index = i * array_size / pnum;
+        unsigned int end_index = (i + 1) * array_size / pnum;
+        
+        if (end_index > array_size) {
+          end_index = array_size;
+        }
 
-        // parallel somehow
+        struct MinMax local_min_max = GetMinMax(array, start_index, end_index);
 
         if (with_files) {
           // use files here
+          FILE *file = fopen(filenames[i], "w");
+          if (file == NULL) {
+            printf("Failed to open file %s\n", filenames[i]);
+            exit(1);
+          }
+          fprintf(file, "%d %d", local_min_max.min, local_min_max.max);
+          fclose(file);
         } else {
           // use pipe here
+          close(pipe_fds[2*i]); // Close read end
+          write(pipe_fds[2*i + 1], &local_min_max.min, sizeof(int));
+          write(pipe_fds[2*i + 1], &local_min_max.max, sizeof(int));
+          close(pipe_fds[2*i + 1]); // Close write end
         }
-        return 0;
+        free(array);
+        exit(0);
       }
 
     } else {
@@ -115,9 +163,15 @@ int main(int argc, char **argv) {
     }
   }
 
-  while (active_child_processes > 0) {
-    // your code here
+  // Parent process
+  if (!with_files) {
+    for (int i = 0; i < pnum; i++) {
+      close(pipe_fds[2*i + 1]); // Close write ends in parent
+    }
+  }
 
+  while (active_child_processes > 0) {
+    wait(NULL); // Wait for all child processes to finish
     active_child_processes -= 1;
   }
 
@@ -131,8 +185,20 @@ int main(int argc, char **argv) {
 
     if (with_files) {
       // read from files
+      FILE *file = fopen(filenames[i], "r");
+      if (file == NULL) {
+        printf("Failed to open file %s\n", filenames[i]);
+        continue;
+      }
+      fscanf(file, "%d %d", &min, &max);
+      fclose(file);
+      // Remove temporary file
+      remove(filenames[i]);
     } else {
       // read from pipes
+      read(pipe_fds[2*i], &min, sizeof(int));
+      read(pipe_fds[2*i], &max, sizeof(int));
+      close(pipe_fds[2*i]); // Close read end after reading
     }
 
     if (min < min_max.min) min_max.min = min;
@@ -145,7 +211,15 @@ int main(int argc, char **argv) {
   double elapsed_time = (finish_time.tv_sec - start_time.tv_sec) * 1000.0;
   elapsed_time += (finish_time.tv_usec - start_time.tv_usec) / 1000.0;
 
+  // Cleanup
   free(array);
+  if (pipe_fds != NULL) free(pipe_fds);
+  if (filenames != NULL) {
+    for (int i = 0; i < pnum; i++) {
+      free(filenames[i]);
+    }
+    free(filenames);
+  }
 
   printf("Min: %d\n", min_max.min);
   printf("Max: %d\n", min_max.max);
