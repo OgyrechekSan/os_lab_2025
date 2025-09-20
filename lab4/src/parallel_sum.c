@@ -10,9 +10,9 @@
 
 void *ThreadSum(void *args) {
   struct SumArgs *sum_args = (struct SumArgs *)args;
-  int *result = malloc(sizeof(int));
+  long long *result = malloc(sizeof(long long)); 
   *result = Sum(sum_args);
-  return (void *)result;
+  return (void*)result;
 }
 
 int main(int argc, char **argv) {
@@ -65,12 +65,12 @@ int main(int argc, char **argv) {
     }
   }
   
-  int total_sum = 0;
+  long long total_sum = 0;
   for (uint32_t i = 0; i < threads_num; i++) {
-    int *sum_ptr;
+    long long *sum_ptr;
     pthread_join(threads[i], (void **)&sum_ptr);
     total_sum += *sum_ptr;
-    free(sum_ptr); // Не забываем освободить память
+    free(sum_ptr); 
   }
   
   // End timing
@@ -78,7 +78,7 @@ int main(int argc, char **argv) {
   double elapsed_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
   
   free(array);
-  printf("Total: %d\n", total_sum);
+  printf("Total: %lld\n", total_sum);
   printf("Elapsed time: %.6f seconds\n", elapsed_time);
   
   return 0;
