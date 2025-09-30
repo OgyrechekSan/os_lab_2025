@@ -128,7 +128,7 @@ int main(int argc, char **argv) {
       active_child_processes += 1;
       if (child_pid == 0) {
         // child process
-        unsigned int start_index = i * array_size / pnum;
+        unsigned int start_index = i * array_size / pnum;//разбиение массива
         unsigned int end_index = (i + 1) * array_size / pnum;
         
         if (end_index > array_size) {
