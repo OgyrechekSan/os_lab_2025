@@ -1,0 +1,48 @@
+# Бинарные файлы и исполняемые файлы
+*.exe
+*.out
+*.app
+
+# Объектные файлы
+*.o
+*.obj
+*.ko
+
+# Библиотеки
+*.a
+*.lib
+*.dll
+*.so
+*.dylib
+
+# Файлы сборки
+/client
+/server
+/tcpclient
+/tcpserver
+/udpclient
+/udpserver
+/calc_test
+
+# Временные файлы
+*.swp
+*.swo
+*~
+*.tmp
+
+# Файлы IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Файлы операционной системы
+.DS_Store
+Thumbs.db
+
+# Файлы сборки Makefile
+*.d
+*.su
+
+# Автогенерируемые файлы
+servers.txt
