@@ -1,7 +1,4 @@
 #include <limits.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -12,30 +9,16 @@
 #include <sys/types.h>
 
 #include "pthread.h"
+#include "same.h"
 
-struct FactorialArgs {
-  uint64_t begin;
-  uint64_t end;
-  uint64_t mod;
-};
-
-uint64_t MultModulo(uint64_t a, uint64_t b, uint64_t mod) {
-  uint64_t result = 0;
-  a = a % mod;
-  while (b > 0) {
-    if (b % 2 == 1)
-      result = (result + a) % mod;
-    a = (a * 2) % mod;
-    b /= 2;
-  }
-
-  return result % mod;
-}
 
 uint64_t Factorial(const struct FactorialArgs *args) {
   uint64_t ans = 1;
 
-  // TODO: your code here
+  // вычисляем факториал для диапазона [begin, end]
+  for (uint64_t i = args->begin; i <= args->end; i++) {
+    ans = MultModulo(ans, i, args->mod);
+  }
 
   return ans;
 }
@@ -50,7 +33,6 @@ int main(int argc, char **argv) {
   int port = -1;
 
   while (true) {
-    int current_optind = optind ? optind : 1;
 
     static struct option options[] = {{"port", required_argument, 0, 0},
                                       {"tnum", required_argument, 0, 0},
@@ -140,7 +122,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Client read failed\n");
         break;
       }
-      if (read < buffer_size) {
+      if (read < (int)buffer_size) {
         fprintf(stderr, "Client send wrong data format\n");
         break;
       }
@@ -154,30 +136,46 @@ int main(int argc, char **argv) {
       memcpy(&end, from_client + sizeof(uint64_t), sizeof(uint64_t));
       memcpy(&mod, from_client + 2 * sizeof(uint64_t), sizeof(uint64_t));
 
-      fprintf(stdout, "Receive: %llu %llu %llu\n", begin, end, mod);
+      fprintf(stdout, "Receive: %lu %lu %lu\n", begin, end, mod);
 
       struct FactorialArgs args[tnum];
-      for (uint32_t i = 0; i < tnum; i++) {
-        // TODO: parallel somehow
-        args[i].begin = 1;
-        args[i].end = 1;
-        args[i].mod = mod;
 
-        if (pthread_create(&threads[i], NULL, ThreadFactorial,
-                           (void *)&args[i])) {
-          printf("Error: pthread_create failed!\n");
-          return 1;
-        }
+      // Вычисляем размер диапазона для каждого потока
+      uint64_t range = end - begin + 1;
+      uint64_t chunk = range / tnum;
+      uint64_t remainder = range % tnum;
+
+      uint64_t current = begin;
+      for (int i = 0; i < tnum; i++) {
+          // Устанавливаем диапазон для текущего потока
+          args[i].begin = current;
+          args[i].end = current + chunk - 1;
+          
+          // Распределяем остаток по первым потокам
+          if ((uint64_t)i < remainder) {
+              args[i].end++;
+          }
+          
+          args[i].mod = mod;
+
+          // Создаем поток
+          if (pthread_create(&threads[i], NULL, ThreadFactorial, (void *)&args[i])) {
+              fprintf(stderr, "Error: pthread_create failed!\n");
+              return 1;
+          }
+          
+          current = args[i].end + 1;
       }
 
+      // Собираем результаты от всех потоков
       uint64_t total = 1;
-      for (uint32_t i = 0; i < tnum; i++) {
-        uint64_t result = 0;
-        pthread_join(threads[i], (void **)&result);
-        total = MultModulo(total, result, mod);
+      for (int i = 0; i < tnum; i++) {
+          uint64_t result = 0;
+          pthread_join(threads[i], (void **)&result);
+          total = MultModulo(total, result, mod);
       }
 
-      printf("Total: %llu\n", total);
+      printf("Total: %lu\n", total);
 
       char buffer[sizeof(total)];
       memcpy(buffer, &total, sizeof(total));
